@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Peter J Slack: #100dayproject</title>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <meta name="DESCRIPTION" content="The 100 day creative project" />
+        <meta name="AUTHOR" content="Peter J Slack" />
+        <meta name="GENERATOR" content="Hand Written by Peter J Slack" />
+        <meta name="RATING" content="General" />
+        <meta name="ROBOTS" content="All" />
+        <meta property="og:title" content="Peter J Slack Day - 14 #100dayproject"/>
+        <meta property="og:site_name" content="Peter J Slack"/>
+        <meta property="og:url" content="http://pjslack.com/100day/day14/"/>
+        <meta property="fb:admins" content="651917130"/>
+        <meta property="og:description" content="Lambdoma Matrix keyboard - bubbles" />
+        <meta property="og:image" content="http://pjslack.com/pjslogo.gif" />
+        <meta property="fb:app_id" content="156281636932" />
+        <link href="css/reset.css" rel="stylesheet"/>
+
+        <style>
+            .chart rect {
+                fill: steelblue;
+            }
+
+            .chart text {
+                fill: white;
+                font: 10px sans-serif;
+                text-anchor: end;
+            }
+
+            .wing_menus rect{
+                fill: black;
+            }
+
+            .wing polygon{
+                fill: pink;
+                opacity: 0.5;
+            }
+            rect:hover 
+            {
+                opacity: 0.5;
+            }
+
+        </style>
+
+        <script src="d3.min.js"></script>
+
+        <script type='text/javascript'>
+
+            var myAudioContext;
+            var isWebAudioKit = false;
+            var myBuffers = [];
+            var oldAudio = false; //we use this to detect the diffrerent betweeen old and new AudioContext
+            var w = undefined;
+            var tonesLoaded = false;
+
+            function startWorker() {
+                if (typeof (Worker) !== "undefined") {
+                    if (typeof (w) == "undefined") {
+                        if (isWebAudioKit)
+                            w = new Worker("loadmp3.js");
+                    }
+
+                    w.onmessage = function (event) {
+                        myAudioContext.decodeAudioData(event.data, function (decodedData) {
+                            // use the dec​oded data here
+                            playsong(decodedData);
+                        });
+
+                        tonesLoaded = true;
+                        document.getElementById("result").innerHTML = "";
+
+
+                    };
+                } else {
+                    document.getElementById("result").innerHTML = "Sorry! No Web Worker support.";
+                }
+            }
+
+            function stopWorker() {
+                w.terminate();
+                w = undefined;
+            }
+
+
+            function init() {
+
+
+                try
+                {
+                    if ("AudioContext" in window)
+                    {
+                        myAudioContext = new AudioContext();
+                        oldAudio = false;
+                    } else if ("webkitAudioContext" in window)
+                    {
+                        myAudioContext = new webkitAudioContext();
+                        oldAudio = true;
+                    }
+
+                    console.log("Audio Context Created");
+                    isWebAudioKit = true;
+
+                } catch (e)
+                {
+                    isWebAudioKit = false;
+                    console.log("Audio Context non existant");
+                    document.getElementById("result").innerHTML = "ERROR : Unable to create Audio context";
+                }
+
+                generateLambdomaTones();
+                generateLambdomaMatrix();
+                document.getElementById("result").innerHTML = "";
+                connectLambdomaTransport();
+                myTransport.isPlaying = true;
+                balls();
+            }
+
+
+        </script>
+
+
+
+    </head>
+
+    <body onload="init()">
+
+
+        <div id="result"><h1>Generating LAMBDOMA MATRIX</h1></div>
+
+        <script>
+
+
+            var lambdomaTones = [];
+            //number of lambdoma boxes
+            var lambi = 16;
+            var baseFrequency = 432;
+
+            var myScheduler;
+            var myTransport;
+
+            function generateLambdomaTones()
+            {
+
+                console.log("lambdoma.js");
+                if (!isWebAudioKit)
+                    return;
+
+                var sampleTime = 1.0;
+
+                var sampleRateHz = 44100;
+                var numSamples = 44100 * sampleTime;                 // 1 sec
+
+                var baseFreq = 2 * Math.PI * baseFrequency / sampleRateHz;  // A4
+
+                var samples = [];
+
+                for (var i = 0; i < lambi; ++i) {
+                    for (var j = 0; j < lambi; j++) {
+
+                        var freq = baseFreq * (j + 1) / (i + 1);
+                        var ijbuf = myAudioContext.createBuffer(1, numSamples, sampleRateHz);
+                        lambdomaTones[i * lambi + j] = ijbuf
+                        var samples = ijbuf.getChannelData(0);
+                        for (var t = 0; t < numSamples; ++t) {
+                            samples[t] = Math.sin(freq * t) * (numSamples - t) / numSamples * .05;
+                        }
+
+                    }
+                }
+                tonesLoaded = true;
+            }
+
+            function generateLambdomaMatrix()
+            {
+                var width = window.innerWidth, height = window.innerHeight;
+                var mindim = (width < height) ? width : height;
+                var keydim = Math.sqrt((mindim * mindim) / 2);
+
+                var boxwidth = keydim / lambi;
+                var matrix = [];
+
+                var svg = d3.select("body").append("svg")
+                        .attr("width", width)
+                        .attr("height", height)
+
+                for (var i = 0; i < lambi; i++)
+                {
+                    for (var j = 0; j < lambi; j++)
+                    {
+                        matrix[i * lambi + j] = (j + 1) / (i + 1);
+                    }
+
+
+                }
+
+                
+                var menu = svg.append("g")
+                        .attr("class", "wing_menus");
+
+                        var ballson = svg.append("g")
+                        .attr("id", "floatyballs");
+
+        var ypos = height - mindim;
+                var xpos = (width - mindim) / 2;
+
+                menu.append("rect")
+                        .attr("x", xpos)
+                        .attr("y", ypos)
+                        .attr("width", mindim)
+                        .attr("height", mindim);
+
+
+        var topleft = svg.append("g").attr("class", "wing")
+                        .attr("id", "top_left_wing");
+
+                var topright = svg.append("g").attr("class", "wing")
+                        .attr("id", "top_right_wing");
+                var bottomleft = svg.append("g").attr("class", "wing");
+                var bottomright = svg.append("g").attr("class", "wing");
+                var ofs = 5;
+
+
+
+                topLeftPoly = [{"x": xpos + ofs, "y": ypos + ofs},
+                    {"x": xpos + mindim / 2 - ofs, "y": ypos + ofs},
+                    {"x": xpos + ofs, "y": ypos + mindim / 2 - ofs}];
+
+                topRightPoly = [{"x": xpos + mindim / 2 + ofs, "y": ypos + ofs},
+                    {"x": xpos + mindim - ofs, "y": ypos + ofs},
+                    {"x": xpos + mindim - ofs, "y": ypos + mindim / 2 - ofs}];
+
+                bottomLeftPoly = [{"x": xpos + ofs, "y": ypos + mindim / 2 + ofs},
+                    {"x": xpos + ofs, "y": ypos + mindim - ofs},
+                    {"x": xpos + mindim / 2 - ofs, "y": ypos + mindim - ofs}];
+
+                bottomRightPoly = [{"x": xpos + mindim - ofs, "y": ypos + mindim / 2 + ofs},
+                    {"x": xpos + +mindim - ofs, "y": ypos + mindim - ofs},
+                    {"x": xpos + mindim / 2 + ofs, "y": ypos + mindim - ofs}];
+
+
+
+
+                topleft.selectAll("polygon")
+                        .data([topLeftPoly])
+                        .enter().append("polygon")
+                        .attr("points", function (d) {
+                            return d.map(function (d) {
+                                return [d.x, d.y].join(",");
+                            }).join(" ");
+                        });
+                bottomleft.selectAll("polygon")
+                        .data([bottomLeftPoly])
+                        .enter().append("polygon")
+                        .attr("points", function (d) {
+                            return d.map(function (d) {
+                                return [d.x, d.y].join(",");
+                            }).join(" ");
+                        });
+
+                topright.selectAll("polygon")
+                        .data([topRightPoly])
+                        .enter().append("polygon")
+                        .attr("points", function (d) {
+                            return d.map(function (d) {
+                                return [d.x, d.y].join(",");
+                            }).join(" ");
+                        });
+                bottomright.selectAll("polygon")
+                        .data([bottomRightPoly])
+                        .enter().append("polygon")
+                        .attr("points", function (d) {
+                            return d.map(function (d) {
+                                return [d.x, d.y].join(",");
+                            }).join(" ");
+                        });
+
+
+                topleft.append("text").attr("x", xpos + ofs + 10)
+                        .attr("y", ypos + ofs + 20)
+                        .text("FEQUENCY");
+                topright.append("text").attr("x", xpos + mindim - ofs - 100)
+                        .attr("y", ypos + ofs + 20)
+                        .text("CHARACTER");
+                bottomleft.append("text").attr("x", xpos + ofs + 10)
+                        .attr("y", ypos + mindim - ofs - 20)
+                        .text("SPACE");
+                bottomright.append("text").attr("x", xpos + mindim - ofs - 100)
+                        .attr("y", ypos + mindim - ofs - 20)
+                        .text("TIME");
+
+
+                var container = svg.append("g");
+
+
+                var chart = svg.append("g")
+                        .attr("class", "chart")
+                        .attr("width", width)
+                        .attr("height", 256);
+
+
+
+                container.attr("transform", "translate(" + width / 2 + " ," + height + ") rotate(-135)");
+
+                var box = container.selectAll("g")
+                        .data(matrix)
+                        .enter().append("g")
+                        .on("mouseover", playLambdomaMouseOver)
+                        .on("touchstart", playLambdomaTouchStart)
+                        .on("touchend", playLambdomaTouchEnd)
+                        .on("touchmove", playLambdomaTouchMove)
+                        .attr("transform", function (d, i) {
+                            return "translate(" + i % lambi * boxwidth + "," + Math.floor(i / lambi) * boxwidth + ")";
+                        });
+
+                box.append("rect")
+                        .attr("width", boxwidth)
+                        .attr("height", boxwidth)
+                        .attr("id", function (d, i) {
+                            return "lr-" + i;
+                        })
+                        .style("fill", function (d) {
+                            rgb = getlightFreqRGB(d * baseFrequency);
+                            return d3.rgb(rgb[0], rgb[1], rgb[2]);
+                        })
+                                .style("opacity" , 0.85);
+
+
+            }
+
+            var touchEnabled = false;
+            function playLambdomaTouchMove(d, i)
+            {
+                e = window.event;
+                e.preventDefault();
+            }
+            function playLambdomaTouchStart(d, i)
+            {
+                touchEnabled = true;
+                e = window.event;
+                d3.select("#lr-" + i).style("opacity", "0.5");
+                playLambdoma(d, i);
+                e.preventDefault();
+
+            }
+            function playLambdomaTouchEnd(d, i)
+            {
+                d3.select("#lr-" + i).style("opacity", "1.0");
+                e.preventDefault();
+            }
+
+            function playLambdomaMouseOver(d, i)
+            {
+                if (!touchEnabled)
+                    playLambdoma(d, i);
+
+            }
+
+
+
+
+            function notewalker()
+            {
+                this.notes = new Array();
+                this.addNote = function (newNote)
+                {
+                    this.note.push(newNote);
+                };
+            }
+
+            function notescheduler(voiceTransport)
+            {
+                this.notetransport = voiceTransport;
+                this.noteWalkers = new Array();
+                this.addVoice = function (voice)
+                {
+                    return this.voices.push(voice);
+                };
+                this.tick = function ()
+                {
+
+                };
+
+
+            }
+
+            function transport(bufferSize)
+            {
+                this.scheduler = new notescheduler(this);
+                this.bufferSize = bufferSize;
+                this.isPlaying = false;
+                this.samplePosition = 0;
+                this.tempo = 120.0;
+                this.beatPosition = 0.0;
+                this.sampleRate = 44100;
+                this.isLooping = false;
+
+                this.tick = function ()
+                {
+                    if (this.isPlaying)
+                    {
+                        this.samplePosition += this.bufferSize;
+                        this.beatPosition = this.samplePosition / this.sampleRate * this.tempo / 60;
+                        this.scheduler.tick();
+                    }
+                };
+
+            }
+
+
+
+            var chart = undefined;
+
+
+            function freqinit(data)
+            {
+                var fwidth = window.innerWidth, fheight = 256;
+                var barwidth = fwidth / data.length;
+
+
+                chart = d3.select(".chart");
+
+
+                var bar = chart.selectAll("g")
+                        .data(data)
+                        .enter().append("g")
+                        .attr("transform", function (d, i) {
+                            return "translate(" + 2 * i * barwidth + ",0)";
+                        });
+
+                bar.append("rect")
+                        .attr("width", barwidth)
+                        .attr("height", 0);
+
+            }
+
+
+            var freqdisplay = [];
+            function calcFreqChart(data)
+            {
+                if (!isWebAudioKit)
+                    return;
+                if (chart == undefined)
+                    freqinit(data);
+                else
+                    updateFreqChart(data);
+            }
+
+            function updateFreqChart(data)
+            {
+
+                d3.select(".chart").selectAll("rect")
+                        .data(data)
+                        .attr("height", function (d) {
+                            return d;
+                        });
+
+            }
+
+            function balls() {
+                width = window.innerWidth, height = window.innerHeight;
+
+
+                /// frequency visualization
+
+
+                /// the balls of glory
+                nodes = d3.range(40).map(function () {
+                    return {radius: Math.random() * 44, hit: false, uid: guid()};
+                }),
+                        root = nodes[0],
+                        color = d3.scale.category10();
+
+                root.radius = 0;
+                root.fixed = true;
+
+               force = d3.layout.force()
+                        .gravity(0.01)
+                        .charge(function (d, i) {
+                            return i ? 0 : -1500;
+                        })
+                        .nodes(nodes)
+                        .size([width, height]);
+
+                force.start();
+
+
+
+                svg = d3.select("#floatyballs").append("svg")
+                        .attr("width", width)
+                        .attr("height", height)
+                        .attr("class", "chart");
+
+                svg.selectAll("circle")
+                        .data(nodes.slice(1))
+                        .enter().append("circle")
+                        .attr("r", function (d) {
+                            return d.radius;
+                        })
+                        .style("fill", function (d, i) {
+                            return color(i % 3);
+                        })
+                        .style("opacity", function (d, i) {
+                            return 0.45;
+                        })
+                        ;
+
+                force.on("tick", function (e) {
+                    var q = d3.geom.quadtree(nodes),
+                            i = 0,
+                            n = nodes.length;
+
+                    while (++i < n) {
+
+
+                        q.visit(collide(nodes[i]));
+
+//                    if (nodehit(nodes[i]))
+//                    {
+//                        tn = Math.round(nodes[i].radius);
+//                        if (tn <= 88 && tonesLoaded && !nodes[i].hit)
+//                            play(tn);
+//
+//                        nodes[i].hit = true;
+//
+//                    } else
+//                    {
+//                        nodes[i].hit = false;
+//                    }
+
+
+                    }
+
+                    svg.selectAll("circle")
+                            .attr("cx", function (d) {
+                                return d.x;
+                            })
+                            .attr("cy", function (d) {
+                                return d.y;
+                            });
+                });
+
+
+                d3.select("body").on("mousemove", function () {
+                    var p1 = d3.mouse(this);
+                    root.px = p1[0];
+                    root.py = p1[1];
+                    force.resume();
+                });
+
+
+ 
+
+
+ 
+ 
+
+
+    
+            }
+            
+
+            
+               function nodehit(node)
+            {
+                i = 0;
+                n = nodes.length;
+
+                while (++i < n)
+                {
+                    if (nodes[i].uid != node.uid)
+                    {
+                        d = node.radius + nodes[i].radius;
+                        xd = node.x - nodes[i].x;
+                        yd = node.y - nodes[i].y;
+                        sep = Math.sqrt(xd * xd + yd * yd);
+
+                        if (Math.abs(sep - d) < 0.5)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+
+            }
+
+    
+  function play(uri) {
+
+                if (isWebAudioKit) {
+                    var source = myAudioContext.createBufferSource();
+                    source.buffer = myBuffers[uri];
+                    source.loop = false;
+                    source.connect(myAudioContext.destination);
+                    source.start();
+                } else
+                {
+                    var audio = new Audio(tones[uri]);
+                    audio.play();
+
+                }
+
+
+            }
+            
+            function collide(node) {
+
+                var r = node.radius + 16,
+                        nx1 = node.x - r,
+                        nx2 = node.x + r,
+                        ny1 = node.y - r,
+                        ny2 = node.y + r;
+
+                return function (quad, x1, y1, x2, y2)
+                {
+                    if (quad.point && (quad.point !== node))
+                    {
+                        var x = node.x - quad.point.x,
+                                y = node.y - quad.point.y,
+                                l = Math.sqrt(x * x + y * y),
+                                r = node.radius + quad.point.radius;
+                        if (l < r)
+                        {
+                            l = (l - r) / l * .5;
+                            node.x -= x *= l;
+                            node.y -= y *= l;
+                            quad.point.x += x;
+                            quad.point.y += y;
+                        }
+                    }
+
+                    return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+                };
+            }
+
+    
+    
+    function guid() {
+                function s4() {
+                    return Math.floor((1 + Math.random()) * 0x10000)
+                            .toString(16)
+                            .substring(1);
+                }
+                return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+                        s4() + '-' + s4() + s4() + s4();
+            }
+
+            
+            function playLambdoma(d, i)
+            {
+                if (isWebAudioKit && tonesLoaded) {
+                    var source = myAudioContext.createBufferSource();
+                    source.buffer = lambdomaTones[i];
+                    source.loop = false;
+                    source.connect(myAudioContext.destination);
+                    if (oldAudio)
+                        source.noteOn(0);
+                    else
+                        source.start();
+                }
+
+            }
+
+            function connectLambdomaTransport()
+            {
+                if (!isWebAudioKit)
+                    return;
+                var bufsize = 256;
+                myTransport = new transport(bufsize);
+                myScheduler = new notescheduler(myTransport);
+                // setup a javascript node
+                javascriptNode = myAudioContext.createScriptProcessor(bufsize, 1, 1);
+                // connect to destination, else it isn't called
+                javascriptNode.connect(myAudioContext.destination);
+
+                javascriptNode.onaudioprocess = function () {
+
+                    myTransport.tick();
+
+                };
+
+            }
+
+            function connectLambdomaAnalyser() {
+                if (!isWebAudioKit)
+                    return;
+                // setup a javascript node
+                javascriptNode = myAudioContext.createScriptProcessor(2048, 1, 1);
+                // connect to destination, else it isn't called
+                javascriptNode.connect(myAudioContext.destination);
+
+                // setup a analyzer
+                analyser = myAudioContext.createAnalyser();
+                analyser.smoothingTimeConstant = 0.3;
+                analyser.fftSize = 1024;
+                analyser.connect(javascriptNode);
+
+                javascriptNode.onaudioprocess = function () {
+
+                    // get the average for the first channel
+                    var array = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteFrequencyData(array);
+                    var average = getAverageVolume(array);
+                    calcFreqChart(array);
+
+
+                };
+
+            }
+
+
+            function getAverageVolume(array) {
+                var values = 0;
+                var average;
+
+                var length = array.length;
+
+                // get all the frequency amplitudes
+                for (var i = 0; i < length; i++) {
+                    values += array[i];
+                }
+
+                average = values / length;
+                return average;
+            }
+
+
+
+
+            function playsong(uri) {
+
+                if (isWebAudioKit)
+                {
+
+
+                    var source = myAudioContext.createBufferSource();
+                    source.buffer = uri;
+                    source.loop = false;
+
+                    // setup a javascript node
+                    javascriptNode = myAudioContext.createScriptProcessor(2048, 1, 1);
+
+
+                    // connect to destination, else it isn't called
+                    javascriptNode.connect(myAudioContext.destination);
+
+                    // setup a analyzer
+                    analyser = myAudioContext.createAnalyser();
+                    analyser.smoothingTimeConstant = 0.3;
+                    analyser.fftSize = 1024;
+
+                    analyser2 = myAudioContext.createAnalyser();
+                    analyser2.smoothingTimeConstant = 0.0;
+                    analyser2.fftSize = 1024;
+
+                    splitter = myAudioContext.createChannelSplitter();
+
+                    // connect the source to the analyser and the splitter
+                    source.connect(splitter);
+
+                    // connect one of the outputs from the splitter to
+                    // the analyser
+                    splitter.connect(analyser, 0, 0);
+                    splitter.connect(analyser2, 1, 0);
+
+                    // we use the javascript node to draw at a
+                    // specific interval.
+                    analyser.connect(javascriptNode);
+
+                    // and connect to destination
+                    source.connect(myAudioContext.destination);
+
+                    source.start();
+
+
+
+                    javascriptNode.onaudioprocess = function () {
+
+                        // get the average for the first channel
+                        var array = new Uint8Array(analyser.frequencyBinCount);
+                        analyser.getByteFrequencyData(array);
+                        var average = getAverageVolume(array);
+                        calcFreqChart(array);
+
+                        // get the average for the second channel
+                        var array2 = new Uint8Array(analyser2.frequencyBinCount);
+                        analyser2.getByteFrequencyData(array2);
+                        var average2 = getAverageVolume(array2);
+
+                    };
+
+
+
+                }
+
+            }
+
+
+
+            function getlightFreqRGB(audioFreq)
+            {
+                var rel = audioFreq / (7000 - 27);
+                var light = 380 + rel * (780 - 380);
+                return waveLengthToRGB(light);
+            }
+
+            var Gamma = 0.80;
+            var IntensityMax = 255;
+
+            /** Taken from Earl F. Glynn's web page:
+             * <a href="http://www.efg2.com/Lab/ScienceAndEngineering/Spectra.htm">Spectra Lab Report</a>
+             * */
+            function waveLengthToRGB(Wavelength) {
+                var factor;
+                var Red, Green, Blue;
+
+                if ((Wavelength >= 380) && (Wavelength < 440)) {
+                    Red = -(Wavelength - 440) / (440 - 380);
+                    Green = 0.0;
+                    Blue = 1.0;
+                } else if ((Wavelength >= 440) && (Wavelength < 490)) {
+                    Red = 0.0;
+                    Green = (Wavelength - 440) / (490 - 440);
+                    Blue = 1.0;
+                } else if ((Wavelength >= 490) && (Wavelength < 510)) {
+                    Red = 0.0;
+                    Green = 1.0;
+                    Blue = -(Wavelength - 510) / (510 - 490);
+                } else if ((Wavelength >= 510) && (Wavelength < 580)) {
+                    Red = (Wavelength - 510) / (580 - 510);
+                    Green = 1.0;
+                    Blue = 0.0;
+                } else if ((Wavelength >= 580) && (Wavelength < 645)) {
+                    Red = 1.0;
+                    Green = -(Wavelength - 645) / (645 - 580);
+                    Blue = 0.0;
+                } else if ((Wavelength >= 645) && (Wavelength < 781)) {
+                    Red = 1.0;
+                    Green = 0.0;
+                    Blue = 0.0;
+                } else {
+                    Red = 0.0;
+                    Green = 0.0;
+                    Blue = 0.0;
+                }
+                ;
+
+                // Let the intensity fall off near the vision limits
+
+                if ((Wavelength >= 380) && (Wavelength < 420)) {
+                    factor = 0.3 + 0.7 * (Wavelength - 380) / (420 - 380);
+                } else if ((Wavelength >= 420) && (Wavelength < 701)) {
+                    factor = 1.0;
+                } else if ((Wavelength >= 701) && (Wavelength < 781)) {
+                    factor = 0.3 + 0.7 * (780 - Wavelength) / (780 - 700);
+                } else {
+                    factor = 0.0;
+                }
+                ;
+
+                // Don't want 0^x = 1 for x <> 0
+                var rgb = [Red === 0.0 ? 0 : Math.round(IntensityMax * Math.pow(Red * factor, Gamma)),
+                    Green === 0.0 ? 0 : Math.round(IntensityMax * Math.pow(Green * factor, Gamma)),
+                    Blue === 0.0 ? 0 : Math.round(IntensityMax * Math.pow(Blue * factor, Gamma))];
+
+                return rgb;
+            }
+
+
+
+
+
+        </script>
+
+
+    </body>
+</html>
